@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
 Place a band-aid on a wound using a segmentation mask from
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+https://github.com/Nico-Curti/Deepskin.
+
+Primary workflow:
+  1) Run the external Deepskin repo to generate a wound mask.
+  2) Find wound contour/center/orientation from that mask.
+  3) Overlay a rotated/scaled band-aid.
+=======
 https://github.com/uwm-bigdata/wound-segmentation.
 
 Primary workflow:
@@ -14,6 +22,7 @@ Example:
     --seg-repo /path/to/wound-segmentation \
     --seg-command "python predict.py --input {input} --mask {mask}" \
     --output arm_with_bandaid.jpg
+>>>>>>> main
 """
 
 from __future__ import annotations
@@ -40,7 +49,10 @@ class WoundDetection:
 
 
 def _largest_contour_from_mask(mask: np.ndarray) -> Optional[WoundDetection]:
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+=======
     """Convert a binary mask into contour geometry for overlay placement."""
+>>>>>>> main
     if mask.ndim == 3:
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 
@@ -54,18 +66,32 @@ def _largest_contour_from_mask(mask: np.ndarray) -> Optional[WoundDetection]:
         return None
 
     h, w = binary.shape[:2]
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    valid = [cnt for cnt in contours if cv2.contourArea(cnt) > (h * w) * 0.0001]
+=======
     min_area = (h * w) * 0.0001
     valid = [cnt for cnt in contours if cv2.contourArea(cnt) > min_area]
+>>>>>>> main
     if not valid:
         return None
 
     contour = max(valid, key=cv2.contourArea)
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    (cx, cy), _, angle = cv2.minAreaRect(contour)
+=======
     rect = cv2.minAreaRect(contour)
     (cx, cy), _, angle = rect
+>>>>>>> main
     if angle < -45:
         angle += 90
 
     x, y, bw, bh = cv2.boundingRect(contour)
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    return WoundDetection(contour=contour, center=(int(cx), int(cy)), angle=float(angle), bbox=(x, y, bw, bh))
+
+
+def detect_wound_with_deepskin(
+=======
     return WoundDetection(
         contour=contour,
         center=(int(cx), int(cy)),
@@ -75,11 +101,28 @@ def _largest_contour_from_mask(mask: np.ndarray) -> Optional[WoundDetection]:
 
 
 def detect_wound_with_repo(
+>>>>>>> main
     image_path: Path,
     seg_repo: Path,
     seg_command: str,
     keep_mask: Optional[Path] = None,
 ) -> Optional[WoundDetection]:
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    """Run a Deepskin command to produce a mask, then estimate wound geometry.
+
+    seg_command must include placeholders:
+      - {input}: absolute input image path
+      - {mask}: absolute output mask path
+    """
+    seg_repo = seg_repo.resolve()
+    image_path = image_path.resolve()
+    if not seg_repo.exists():
+        raise FileNotFoundError(f"Segmentation repo path not found: {seg_repo}")
+
+    if "{input}" not in seg_command or "{mask}" not in seg_command:
+        raise ValueError("--seg-command must include both {input} and {mask} placeholders")
+
+=======
     """Run wound-segmentation repository command to produce a mask and detect wound geometry.
 
     seg_command supports placeholders:
@@ -95,6 +138,7 @@ def detect_wound_with_repo(
     if not seg_repo.exists():
         raise FileNotFoundError(f"Segmentation repo path not found: {seg_repo}")
 
+>>>>>>> main
     with tempfile.TemporaryDirectory(prefix="wound_mask_") as tmpdir:
         tmp_mask = Path(tmpdir) / "wound_mask.png"
         cmd = seg_command.format(input=str(image_path), mask=str(tmp_mask))
@@ -109,7 +153,11 @@ def detect_wound_with_repo(
         )
         if proc.returncode != 0:
             raise RuntimeError(
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+                "Deepskin command failed.\n"
+=======
                 "Wound segmentation command failed.\n"
+>>>>>>> main
                 f"Command: {cmd}\n"
                 f"Exit code: {proc.returncode}\n"
                 f"stdout:\n{proc.stdout}\n"
@@ -117,10 +165,14 @@ def detect_wound_with_repo(
             )
 
         if not tmp_mask.exists():
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+            raise RuntimeError("Segmentation mask was not produced; verify --seg-command output path handling.")
+=======
             raise RuntimeError(
                 "Segmentation finished but mask was not produced. "
                 "Check --seg-command placeholders and output argument."
             )
+>>>>>>> main
 
         mask = cv2.imread(str(tmp_mask), cv2.IMREAD_GRAYSCALE)
         if mask is None:
@@ -133,6 +185,26 @@ def detect_wound_with_repo(
 
 
 def detect_wound_heuristic(image_bgr: np.ndarray) -> Optional[WoundDetection]:
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)
+    mask_hsv = cv2.inRange(hsv, np.array([0, 35, 35]), np.array([12, 255, 255])) | cv2.inRange(
+        hsv, np.array([160, 35, 35]), np.array([179, 255, 255])
+    )
+    mask_lab = cv2.threshold(lab[:, :, 1], 145, 255, cv2.THRESH_BINARY)[1]
+    return _largest_contour_from_mask(cv2.bitwise_and(mask_hsv, mask_lab))
+
+
+def create_default_bandaid(width: int = 320, height: int = 120) -> np.ndarray:
+    img = np.zeros((height, width, 4), dtype=np.uint8)
+    cv2.rectangle(img, (0, 0), (width - 1, height - 1), (196, 190, 173, 255), -1)
+    pad_w, pad_h = int(width * 0.34), int(height * 0.62)
+    px0, py0 = (width - pad_w) // 2, (height - pad_h) // 2
+    cv2.rectangle(img, (px0, py0), (px0 + pad_w, py0 + pad_h), (220, 215, 200, 255), -1)
+    for x in (int(width * 0.12), int(width * 0.88)):
+        for y in range(int(height * 0.22), int(height * 0.82), 10):
+            cv2.circle(img, (x, y), 2, (160, 155, 140, 180), -1)
+=======
     """Fallback redness-based wound detection when repo model is unavailable."""
     hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
     lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)
@@ -162,6 +234,7 @@ def create_default_bandaid(width: int = 320, height: int = 120) -> np.ndarray:
         for y in range(int(height * 0.22), int(height * 0.82), 10):
             cv2.circle(img, (x, y), 2, (160, 155, 140, 180), -1)
 
+>>>>>>> main
     img[:, :, 3] = cv2.GaussianBlur(img[:, :, 3], (7, 7), 0)
     return img
 
@@ -182,11 +255,17 @@ def load_bandaid_image(path: Optional[Path]) -> np.ndarray:
 def overlay_rgba(base_bgr: np.ndarray, overlay_rgba: np.ndarray, center: Tuple[int, int], angle: float) -> np.ndarray:
     out = base_bgr.copy()
     oh, ow = overlay_rgba.shape[:2]
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    rotated = cv2.warpAffine(
+        overlay_rgba,
+        cv2.getRotationMatrix2D((ow // 2, oh // 2), angle, 1.0),
+=======
 
     rotation = cv2.getRotationMatrix2D((ow // 2, oh // 2), angle, 1.0)
     rotated = cv2.warpAffine(
         overlay_rgba,
         rotation,
+>>>>>>> main
         (ow, oh),
         flags=cv2.INTER_LINEAR,
         borderMode=cv2.BORDER_CONSTANT,
@@ -195,13 +274,22 @@ def overlay_rgba(base_bgr: np.ndarray, overlay_rgba: np.ndarray, center: Tuple[i
 
     x0, y0 = center[0] - ow // 2, center[1] - oh // 2
     x1, y1 = x0 + ow, y0 + oh
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+=======
 
+>>>>>>> main
     bx0, by0 = max(0, x0), max(0, y0)
     bx1, by1 = min(out.shape[1], x1), min(out.shape[0], y1)
     if bx0 >= bx1 or by0 >= by1:
         return out
 
     ox0, oy0 = bx0 - x0, by0 - y0
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    overlay_crop = rotated[oy0 : oy0 + (by1 - by0), ox0 : ox0 + (bx1 - bx0)]
+    alpha = overlay_crop[:, :, 3:4].astype(np.float32) / 255.0
+    base_crop = out[by0:by1, bx0:bx1].astype(np.float32)
+    out[by0:by1, bx0:bx1] = (alpha * overlay_crop[:, :, :3] + (1.0 - alpha) * base_crop).astype(np.uint8)
+=======
     ox1, oy1 = ox0 + (bx1 - bx0), oy0 + (by1 - by0)
     overlay_crop = rotated[oy0:oy1, ox0:ox1]
 
@@ -210,13 +298,18 @@ def overlay_rgba(base_bgr: np.ndarray, overlay_rgba: np.ndarray, center: Tuple[i
     over_rgb = overlay_crop[:, :, :3].astype(np.float32)
 
     out[by0:by1, bx0:bx1] = (alpha * over_rgb + (1.0 - alpha) * base_crop).astype(np.uint8)
+>>>>>>> main
     return out
 
 
 def apply_bandaid(image_bgr: np.ndarray, bandaid_rgba: np.ndarray, detection: WoundDetection) -> np.ndarray:
     _, _, bw, bh = detection.bbox
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    target_w = int(max(90, max(bw, bh) * 2.8))
+=======
     wound_scale = max(bw, bh)
     target_w = int(max(90, wound_scale * 2.8))
+>>>>>>> main
     target_h = int(target_w * (bandaid_rgba.shape[0] / bandaid_rgba.shape[1]))
     resized = cv2.resize(bandaid_rgba, (target_w, target_h), interpolation=cv2.INTER_AREA)
     return overlay_rgba(image_bgr, resized, detection.center, detection.angle)
@@ -224,6 +317,21 @@ def apply_bandaid(image_bgr: np.ndarray, bandaid_rgba: np.ndarray, detection: Wo
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Detect wound and place a band-aid.")
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    parser.add_argument("--input", required=True, type=Path)
+    parser.add_argument("--output", type=Path, default=Path("output_with_bandaid.jpg"))
+    parser.add_argument("--bandaid", type=Path, default=None)
+    parser.add_argument("--seg-repo", type=Path, default=None, help="Path to cloned Deepskin repo")
+    parser.add_argument(
+        "--seg-command",
+        type=str,
+        default="python your_deepskin_infer_script.py --input {input} --output {mask}",
+        help="Deepskin command template with {input} and {mask} placeholders.",
+    )
+    parser.add_argument("--mask-out", type=Path, default=None)
+    parser.add_argument("--fallback-heuristic", action="store_true")
+    parser.add_argument("--no-show", action="store_true")
+=======
     parser.add_argument("--input", required=True, type=Path, help="Path to arm image")
     parser.add_argument("--output", type=Path, default=Path("output_with_bandaid.jpg"), help="Output image path")
     parser.add_argument("--bandaid", type=Path, default=None, help="Optional RGBA band-aid image")
@@ -242,6 +350,7 @@ def parse_args() -> argparse.Namespace:
         help="Use redness heuristic if repo segmentation is missing/fails.",
     )
     parser.add_argument("--no-show", action="store_true", help="Skip side-by-side display window")
+>>>>>>> main
     return parser.parse_args()
 
 
@@ -252,6 +361,12 @@ def main() -> None:
         raise FileNotFoundError(f"Could not read input image: {args.input}")
 
     detection = None
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    repo_error: Optional[Exception] = None
+    if args.seg_repo is not None:
+        try:
+            detection = detect_wound_with_deepskin(args.input, args.seg_repo, args.seg_command, args.mask_out)
+=======
     repo_error = None
 
     if args.seg_repo is not None:
@@ -262,6 +377,7 @@ def main() -> None:
                 seg_command=args.seg_command,
                 keep_mask=args.mask_out,
             )
+>>>>>>> main
         except Exception as exc:
             repo_error = exc
 
@@ -271,15 +387,23 @@ def main() -> None:
     if detection is None:
         msg = "Wound detection failed."
         if args.seg_repo is None:
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+            msg += " Provide --seg-repo for Deepskin segmentation."
+=======
             msg += " Provide --seg-repo for model-based segmentation."
+>>>>>>> main
         if repo_error is not None:
             msg += f" Repo error: {repo_error}"
         if not args.fallback_heuristic:
             msg += " You can also enable --fallback-heuristic."
         raise RuntimeError(msg)
 
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+    output = apply_bandaid(image, load_bandaid_image(args.bandaid), detection)
+=======
     bandaid = load_bandaid_image(args.bandaid)
     output = apply_bandaid(image, bandaid, detection)
+>>>>>>> main
     cv2.imwrite(str(args.output), output)
 
     if not args.no_show:
@@ -287,11 +411,17 @@ def main() -> None:
         axes[0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         axes[0].set_title("Original")
         axes[0].axis("off")
+<<<<<<< create-wound-detection-and-band-aid-overlay-5m5bz2
+        axes[1].imshow(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
+        axes[1].set_title("With Band-Aid")
+        axes[1].axis("off")
+=======
 
         axes[1].imshow(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
         axes[1].set_title("With Band-Aid")
         axes[1].axis("off")
 
+>>>>>>> main
         plt.tight_layout()
         plt.show()
 
