@@ -46,26 +46,30 @@ def _binary_from_mask(mask: np.ndarray) -> np.ndarray:
     return binary
 
 
-def _infer_semantic_masks(mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Infer wound + skin masks from a 3-channel semantic mask.
+def _infer_semantic_masks(mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Infer wound + skin + background masks from a 3-channel semantic mask.
 
-    Assumes channels are one-hot-ish (wound/skin/background in any order).
-    Picks the smallest non-zero area as wound, largest as background, middle as skin.
+    Expected channel order: [background, skin, wound]. Falls back to area-based
+    inference if wound/skin channels are empty.
     """
+    background = _binary_from_mask(mask[:, :, 0])
+    skin = _binary_from_mask(mask[:, :, 1])
+    wound = _binary_from_mask(mask[:, :, 2])
+
+    if np.count_nonzero(wound) > 0 and np.count_nonzero(skin) > 0:
+        return wound, skin, background
+
     binaries = [_binary_from_mask(mask[:, :, idx]) for idx in range(mask.shape[2])]
     areas = [int(np.count_nonzero(b)) for b in binaries]
     nonzero = [i for i, a in enumerate(areas) if a > 0]
     if len(nonzero) < 2:
-        # Fallback: treat channel 0 as wound, channel 1 as skin if present.
-        wound = binaries[0]
-        skin = binaries[1] if mask.shape[2] > 1 else np.zeros_like(wound)
-        return wound, skin
+        return wound, skin, background
     order = sorted(nonzero, key=lambda i: areas[i])
     wound_idx = order[0]
     background_idx = order[-1]
     skin_candidates = [i for i in nonzero if i not in (wound_idx, background_idx)]
     skin_idx = skin_candidates[0] if skin_candidates else (order[1] if len(order) > 1 else wound_idx)
-    return binaries[wound_idx], binaries[skin_idx]
+    return binaries[wound_idx], binaries[skin_idx], binaries[background_idx]
 
 
 def _detections_from_mask(mask: np.ndarray) -> List[WoundDetection]:
@@ -176,7 +180,8 @@ def detect_wounds_with_deepskin(
 
         skin_mask = None
         if mask.ndim == 3 and mask.shape[2] >= 3:
-            wound_mask, skin_mask = _infer_semantic_masks(mask)
+            wound_mask, skin_mask, background_mask = _infer_semantic_masks(mask)
+            skin_mask = cv2.bitwise_not(background_mask)
             detections = _detections_from_mask(wound_mask)
         else:
             detections = _detections_from_mask(mask)
