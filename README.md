@@ -28,6 +28,7 @@ python wound_bandaid.py \
 ### Important
 
 - `--seg-command` must contain `{input}` (absolute input image path).
+- `{python}` is optional and points to the current interpreter (recommended for virtualenvs).
 - `{mask}` is optional. If omitted, the script looks for `<input>_deepskin_mask.png` next to the input file (Deepskin CLI default).
 - Use `--mask-out mask.png` if you want to keep the generated mask.
 - Use `--fallback-heuristic` to fall back to redness detection if model inference fails.

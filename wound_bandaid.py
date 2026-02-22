@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import shlex
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,6 +64,16 @@ def _default_deepskin_mask_path(image_path: Path) -> Path:
     return image_path.with_name(f"{image_path.stem}_deepskin_mask.png")
 
 
+def _split_command(cmd: str) -> list[str]:
+    parts = shlex.split(cmd, posix=False)
+    cleaned: list[str] = []
+    for part in parts:
+        if len(part) >= 2 and part[0] == part[-1] and part[0] in ("\"", "'"):
+            part = part[1:-1]
+        cleaned.append(part)
+    return cleaned
+
+
 def detect_wound_with_deepskin(
     image_path: Path,
     seg_repo: Path,
@@ -86,10 +97,11 @@ def detect_wound_with_deepskin(
 
     with tempfile.TemporaryDirectory(prefix="wound_mask_") as tmpdir:
         tmp_mask = Path(tmpdir) / "wound_mask.png"
-        cmd = seg_command.format(input=str(image_path), mask=str(tmp_mask))
+        python_exe = sys.executable
+        cmd = seg_command.format(input=str(image_path), mask=str(tmp_mask), python=python_exe)
 
         proc = subprocess.run(
-            shlex.split(cmd),
+            _split_command(cmd),
             cwd=str(seg_repo),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -208,9 +220,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--seg-command",
         type=str,
-        default="python -m deepskin --input {input} --mask",
+        default="\"{python}\" -m deepskin --input \"{input}\" --mask",
         help=(
             "Deepskin command template with {input} placeholder. "
+            "Use {python} to run with the current interpreter. "
             "If {mask} is included, it should point to the output mask path."
         ),
     )
