@@ -21,8 +21,15 @@ pip install opencv-python numpy matplotlib
 ```bash
 python wound_bandaid.py \
   --input arm.jpg \
-  --seg-repo /path/to/Deepskin \
-  --output arm_with_bandaid.jpg
+  --seg-repo /path/to/Deepskin
+```
+
+Batch run:
+
+```bash
+python wound_bandaid.py \
+  --input-dir wound_images \
+  --seg-repo /path/to/Deepskin
 ```
 
 ### Important
@@ -33,6 +40,24 @@ python wound_bandaid.py \
 - Use `--mask-out mask.png` if you want to keep the generated mask.
 - Use `--fallback-heuristic` to fall back to redness detection if model inference fails.
 - Use `--bandaid my_bandaid.png` to provide custom RGBA overlay.
+- Use `--blend seamless` (default) for Poisson blending, or `--blend alpha` for classic alpha compositing.
+- Use `--overlay-out overlay.png` to save the transformed overlay (RGBA on transparent canvas). Defaults to `<input>_overlay.png`.
+- Output defaults to `<input>_with_bandaid.jpg`.
+- For batch runs, outputs are written to `wound_images/output`, overlays to `wound_images/overlays`, masks to `wound_images/masks`, and pose debug to `wound_images/pose_debug` (override with `--output-dir`, `--overlay-dir`, `--mask-dir`, `--pose-debug-dir`).
+- Use `--size-scale` to control band-aid size relative to wound size.
+- Use `--wrap-strength` to warp/curve the band-aid in both directions.
+- Use `--stretch-to-wound` to stretch the band-aid to match wound width/height (non-uniform scaling).
+- Use `--blend deep` to run DeepImageBlending (requires the repo and its dependencies).
+- DeepImageBlending options: `--deep-blend-repo`, `--deep-blend-size`, `--deep-blend-steps`, `--deep-blend-gpu-id`.
+- When using Deepskin semantic masks (RGB), the red channel is used for the wound ROI.
+- Use `--use-mediapipe` to refine rotation using MediaPipe Pose (optional).
+- Tune pose blending with `--pose-weight` (0=mask only, 1=pose only).
+- If your MediaPipe install uses the Tasks API (no `mp.solutions`), pass `--pose-model-path` pointing to the Pose task model file, or let it auto-download (default).
+- Use `--pose-model-url` to override the model download URL.
+- Use `--no-pose-model-download` to disable auto-download.
+- Default auto-download uses the MediaPipe Pose Landmarker heavy model.
+- Use `--pose-debug-out pose_debug.jpg` to save a pose visualization with landmarks and the chosen orientation vector.
+- Defaults to `<input>_pose_debug.jpg` for single-image runs.
 
 ## Output
 
