@@ -120,7 +120,7 @@ def detect_wounds_with_deepskin(
     seg_repo: Path,
     seg_command: str,
     keep_mask: Optional[Path] = None,
-) -> Tuple[List[WoundDetection], Optional[np.ndarray]]:
+) -> Tuple[List[WoundDetection], Optional[np.ndarray], Optional[np.ndarray]]:
     """Run a Deepskin command to produce a mask, then estimate wound geometry.
 
     seg_command must include placeholder:
@@ -197,7 +197,7 @@ def detect_wounds_with_deepskin(
                 if not keep_mask.exists():
                     cv2.imwrite(str(keep_mask), mask)
 
-        return detections, skin_mask
+        return detections, skin_mask, mask
 
 
 def detect_wound_heuristic(image_bgr: np.ndarray) -> Optional[WoundDetection]:
@@ -610,10 +610,11 @@ def main() -> None:
 
         detections: List[WoundDetection] = []
         skin_mask: Optional[np.ndarray] = None
+        raw_mask: Optional[np.ndarray] = None
         repo_error: Optional[Exception] = None
         if args.seg_repo is not None:
             try:
-                detections, skin_mask = detect_wounds_with_deepskin(
+                detections, skin_mask, raw_mask = detect_wounds_with_deepskin(
                     input_path, args.seg_repo, args.seg_command, mask_path
                 )
             except Exception as exc:
@@ -636,9 +637,7 @@ def main() -> None:
             return None
 
         output = image.copy()
-        overlay_canvas = None
-        if overlay_path is not None:
-            overlay_canvas = np.zeros((output.shape[0], output.shape[1], 4), dtype=np.uint8)
+        overlay_canvas = np.zeros((output.shape[0], output.shape[1], 4), dtype=np.uint8)
 
         for detection in detections:
             output = apply_bandaid(
@@ -656,11 +655,32 @@ def main() -> None:
                 skin_mask=skin_mask,
             )
 
-        if overlay_canvas is not None and overlay_path is not None:
+        if overlay_path is not None:
             overlay_path.parent.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(overlay_path), overlay_canvas)
-        comparison = np.concatenate([image, output], axis=1)
-        cv2.imwrite(str(compare_path), comparison)
+        mask_img = raw_mask
+
+        def to_bgr(img: Optional[np.ndarray], target_shape: Tuple[int, int, int]) -> np.ndarray:
+            if img is None:
+                return np.zeros(target_shape, dtype=np.uint8)
+            if img.ndim == 2:
+                bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            elif img.shape[2] == 4:
+                alpha = img[:, :, 3:4].astype(np.float32) / 255.0
+                bgr = img[:, :, :3].astype(np.float32)
+                bgr = (bgr * alpha).astype(np.uint8)
+            else:
+                bgr = img[:, :, :3]
+            if bgr.shape[:2] != target_shape[:2]:
+                bgr = cv2.resize(bgr, (target_shape[1], target_shape[0]), interpolation=cv2.INTER_AREA)
+            return bgr
+
+        mask_vis = to_bgr(mask_img, image.shape)
+        overlay_vis = to_bgr(overlay_canvas, image.shape)
+        top_row = np.concatenate([image, mask_vis], axis=1)
+        bottom_row = np.concatenate([overlay_vis, output], axis=1)
+        grid = np.concatenate([top_row, bottom_row], axis=0)
+        cv2.imwrite(str(compare_path), grid)
 
         if args.input_dir is None and not args.no_show:
             fig, axes = plt.subplots(1, 2, figsize=(12, 6))
