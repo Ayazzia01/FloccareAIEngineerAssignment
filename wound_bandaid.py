@@ -599,10 +599,12 @@ def main() -> None:
 
         if args.input_dir is not None:
             output_path = output_dir / f"{input_path.stem}_with_bandaid.jpg"
+            compare_path = output_dir / f"{input_path.stem}_with_bandaid_compare.jpg"
             mask_path = mask_dir / f"{input_path.stem}_deepskin_mask.png"
             overlay_path = overlay_dir / f"{input_path.stem}_overlay.png"
         else:
             output_path = args.output or input_path.with_name(f"{input_path.stem}_with_bandaid.jpg")
+            compare_path = output_path.with_name(f"{output_path.stem}_compare{output_path.suffix}")
             mask_path = args.mask_out
             overlay_path = args.overlay_out
 
@@ -657,7 +659,8 @@ def main() -> None:
         if overlay_canvas is not None and overlay_path is not None:
             overlay_path.parent.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(overlay_path), overlay_canvas)
-        cv2.imwrite(str(output_path), output)
+        comparison = np.concatenate([image, output], axis=1)
+        cv2.imwrite(str(compare_path), comparison)
 
         if args.input_dir is None and not args.no_show:
             fig, axes = plt.subplots(1, 2, figsize=(12, 6))
@@ -670,7 +673,7 @@ def main() -> None:
             plt.tight_layout()
             plt.show()
 
-        print(f"Saved result to: {output_path}")
+        print(f"Saved comparison to: {compare_path}")
         return output_path
 
     if args.input_dir is None or args.workers <= 1:
