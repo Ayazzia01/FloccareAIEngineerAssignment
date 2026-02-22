@@ -317,6 +317,14 @@ def _deep_blend_with_repo(
     target_size: int,
     num_steps: int,
     gpu_id: int,
+    deep_blend_pass: str,
+    deep_blend_grad_weight: float,
+    deep_blend_style_weight: float,
+    deep_blend_content_weight: float,
+    deep_blend_tv_weight: float,
+    deep_blend_style_weight_2: float,
+    deep_blend_content_weight_2: float,
+    deep_blend_tv_weight_2: float,
 ) -> Optional[np.ndarray]:
     run_py = repo_path / "run.py"
     if not run_py.exists():
@@ -379,6 +387,27 @@ def _deep_blend_with_repo(
             "--num_steps",
             str(num_steps),
         ]
+        if num_steps >= 0:
+            cmd.extend(
+                [
+                    "--grad_weight",
+                    str(deep_blend_grad_weight),
+                    "--style_weight",
+                    str(deep_blend_style_weight),
+                    "--content_weight",
+                    str(deep_blend_content_weight),
+                    "--tv_weight",
+                    str(deep_blend_tv_weight),
+                    "--style_weight2",
+                    str(deep_blend_style_weight_2),
+                    "--content_weight2",
+                    str(deep_blend_content_weight_2),
+                    "--tv_weight2",
+                    str(deep_blend_tv_weight_2),
+                ]
+            )
+        if deep_blend_pass == "first":
+            cmd.append("--skip_second_pass")
         proc = subprocess.run(cmd, cwd=str(repo_path), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if proc.returncode != 0:
             print("DeepImageBlending failed.")
@@ -386,7 +415,7 @@ def _deep_blend_with_repo(
             print(proc.stderr)
             return None
 
-        result_path = output_dir / "second_pass.png"
+        result_path = output_dir / ("first_pass.png" if deep_blend_pass == "first" else "second_pass.png")
         if not result_path.exists():
             print("DeepImageBlending output not found.")
             return None
@@ -726,6 +755,14 @@ def apply_bandaid(
     deep_blend_size: int,
     deep_blend_steps: int,
     deep_blend_gpu_id: int,
+    deep_blend_pass: str,
+    deep_blend_grad_weight: float,
+    deep_blend_style_weight: float,
+    deep_blend_content_weight: float,
+    deep_blend_tv_weight: float,
+    deep_blend_style_weight_2: float,
+    deep_blend_content_weight_2: float,
+    deep_blend_tv_weight_2: float,
     overlay_out: Optional[Path],
 ) -> np.ndarray:
     rect = cv2.minAreaRect(detection.contour)
@@ -774,6 +811,14 @@ def apply_bandaid(
             target_size=deep_blend_size,
             num_steps=deep_blend_steps,
             gpu_id=deep_blend_gpu_id,
+            deep_blend_pass=deep_blend_pass,
+            deep_blend_grad_weight=deep_blend_grad_weight,
+            deep_blend_style_weight=deep_blend_style_weight,
+            deep_blend_content_weight=deep_blend_content_weight,
+            deep_blend_tv_weight=deep_blend_tv_weight,
+            deep_blend_style_weight_2=deep_blend_style_weight_2,
+            deep_blend_content_weight_2=deep_blend_content_weight_2,
+            deep_blend_tv_weight_2=deep_blend_tv_weight_2,
         )
         if blended is not None:
             return blended
@@ -874,6 +919,54 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="GPU id for DeepImageBlending.",
+    )
+    parser.add_argument(
+        "--deep-blend-pass",
+        choices=("first", "second"),
+        default="second",
+        help="Use first pass only or full two-pass DeepImageBlending.",
+    )
+    parser.add_argument(
+        "--deep-blend-style-weight",
+        type=float,
+        default=1e4,
+        help="Style loss weight for DeepImageBlending first pass.",
+    )
+    parser.add_argument(
+        "--deep-blend-content-weight",
+        type=float,
+        default=1.0,
+        help="Content loss weight for DeepImageBlending first pass.",
+    )
+    parser.add_argument(
+        "--deep-blend-grad-weight",
+        type=float,
+        default=1e4,
+        help="Gradient loss weight for DeepImageBlending first pass.",
+    )
+    parser.add_argument(
+        "--deep-blend-tv-weight",
+        type=float,
+        default=1e-6,
+        help="TV loss weight for DeepImageBlending first pass.",
+    )
+    parser.add_argument(
+        "--deep-blend-style-weight-2",
+        type=float,
+        default=1e7,
+        help="Style loss weight for DeepImageBlending second pass.",
+    )
+    parser.add_argument(
+        "--deep-blend-content-weight-2",
+        type=float,
+        default=1.0,
+        help="Content loss weight for DeepImageBlending second pass.",
+    )
+    parser.add_argument(
+        "--deep-blend-tv-weight-2",
+        type=float,
+        default=1e-6,
+        help="TV loss weight for DeepImageBlending second pass.",
     )
     parser.add_argument(
         "--overlay-out",
@@ -1047,6 +1140,14 @@ def main() -> None:
             deep_blend_size=args.deep_blend_size,
             deep_blend_steps=args.deep_blend_steps,
             deep_blend_gpu_id=args.deep_blend_gpu_id,
+            deep_blend_pass=args.deep_blend_pass,
+            deep_blend_grad_weight=args.deep_blend_grad_weight,
+            deep_blend_style_weight=args.deep_blend_style_weight,
+            deep_blend_content_weight=args.deep_blend_content_weight,
+            deep_blend_tv_weight=args.deep_blend_tv_weight,
+            deep_blend_style_weight_2=args.deep_blend_style_weight_2,
+            deep_blend_content_weight_2=args.deep_blend_content_weight_2,
+            deep_blend_tv_weight_2=args.deep_blend_tv_weight_2,
             overlay_out=overlay_path,
         )
         cv2.imwrite(str(output_path), output)

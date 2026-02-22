@@ -49,6 +49,7 @@ python wound_bandaid.py \
 - Use `--stretch-to-wound` to stretch the band-aid to match wound width/height (non-uniform scaling).
 - Use `--blend deep` to run DeepImageBlending (requires the repo and its dependencies).
 - DeepImageBlending options: `--deep-blend-repo`, `--deep-blend-size`, `--deep-blend-steps`, `--deep-blend-gpu-id`.
+- DeepImageBlending tuning: `--deep-blend-pass first|second` and weights (`--deep-blend-style-weight`, `--deep-blend-content-weight`, `--deep-blend-grad-weight`, `--deep-blend-tv-weight`, plus `*-2` for second pass).
 - When using Deepskin semantic masks (RGB), the red channel is used for the wound ROI.
 - Use `--use-mediapipe` to refine rotation using MediaPipe Pose (optional).
 - Tune pose blending with `--pose-weight` (0=mask only, 1=pose only).
