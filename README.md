@@ -22,15 +22,13 @@ pip install opencv-python numpy matplotlib
 python wound_bandaid.py \
   --input arm.jpg \
   --seg-repo /path/to/Deepskin \
-  --seg-command "python your_deepskin_infer_script.py --input {input} --output {mask}" \
   --output arm_with_bandaid.jpg
 ```
 
 ### Important
 
-- `--seg-command` **must** contain:
-  - `{input}` = absolute path to input image
-  - `{mask}` = absolute path where a binary/gray wound mask will be written
+- `--seg-command` must contain `{input}` (absolute input image path).
+- `{mask}` is optional. If omitted, the script looks for `<input>_deepskin_mask.png` next to the input file (Deepskin CLI default).
 - Use `--mask-out mask.png` if you want to keep the generated mask.
 - Use `--fallback-heuristic` to fall back to redness detection if model inference fails.
 - Use `--bandaid my_bandaid.png` to provide custom RGBA overlay.

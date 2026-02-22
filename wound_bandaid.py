@@ -59,6 +59,10 @@ def _largest_contour_from_mask(mask: np.ndarray) -> Optional[WoundDetection]:
     return WoundDetection(contour=contour, center=(int(cx), int(cy)), angle=float(angle), bbox=(x, y, bw, bh))
 
 
+def _default_deepskin_mask_path(image_path: Path) -> Path:
+    return image_path.with_name(f"{image_path.stem}_deepskin_mask.png")
+
+
 def detect_wound_with_deepskin(
     image_path: Path,
     seg_repo: Path,
@@ -67,17 +71,18 @@ def detect_wound_with_deepskin(
 ) -> Optional[WoundDetection]:
     """Run a Deepskin command to produce a mask, then estimate wound geometry.
 
-    seg_command must include placeholders:
+    seg_command must include placeholder:
       - {input}: absolute input image path
-      - {mask}: absolute output mask path
+    If {mask} is omitted, the function looks for the default Deepskin CLI output:
+      - <input>_deepskin_mask.png next to the input file
     """
     seg_repo = seg_repo.resolve()
     image_path = image_path.resolve()
     if not seg_repo.exists():
         raise FileNotFoundError(f"Segmentation repo path not found: {seg_repo}")
 
-    if "{input}" not in seg_command or "{mask}" not in seg_command:
-        raise ValueError("--seg-command must include both {input} and {mask} placeholders")
+    if "{input}" not in seg_command:
+        raise ValueError("--seg-command must include the {input} placeholder")
 
     with tempfile.TemporaryDirectory(prefix="wound_mask_") as tmpdir:
         tmp_mask = Path(tmpdir) / "wound_mask.png"
@@ -100,12 +105,22 @@ def detect_wound_with_deepskin(
                 f"stderr:\n{proc.stderr}"
             )
 
-        if not tmp_mask.exists():
-            raise RuntimeError("Segmentation mask was not produced; verify --seg-command output path handling.")
+        if "{mask}" in seg_command:
+            produced_mask = tmp_mask
+        else:
+            produced_mask = _default_deepskin_mask_path(image_path)
 
-        mask = cv2.imread(str(tmp_mask), cv2.IMREAD_GRAYSCALE)
+        if not produced_mask.exists():
+            if "{mask}" in seg_command:
+                raise RuntimeError("Segmentation mask was not produced; verify --seg-command output path handling.")
+            raise RuntimeError(
+                "Segmentation mask was not produced; expected Deepskin output at "
+                f"{produced_mask}. Consider providing --seg-command with {{mask}}."
+            )
+
+        mask = cv2.imread(str(produced_mask), cv2.IMREAD_GRAYSCALE)
         if mask is None:
-            raise RuntimeError(f"Failed to read generated mask: {tmp_mask}")
+            raise RuntimeError(f"Failed to read generated mask: {produced_mask}")
 
         if keep_mask is not None:
             cv2.imwrite(str(keep_mask), mask)
@@ -193,8 +208,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--seg-command",
         type=str,
-        default="python your_deepskin_infer_script.py --input {input} --output {mask}",
-        help="Deepskin command template with {input} and {mask} placeholders.",
+        default="python -m deepskin --input {input} --mask",
+        help=(
+            "Deepskin command template with {input} placeholder. "
+            "If {mask} is included, it should point to the output mask path."
+        ),
     )
     parser.add_argument("--mask-out", type=Path, default=None)
     parser.add_argument("--fallback-heuristic", action="store_true")
