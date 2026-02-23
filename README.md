@@ -12,6 +12,9 @@ This script detects wound regions using a Deepskin segmentation mask and overlay
 pip install opencv-python numpy matplotlib
 ```
 
+Follow the Deepskin README to set up its environment and weights before running this script.
+https://github.com/Nico-Curti/Deepskin
+
 ## Mask Format
 
 The segmentation mask is expected to be **3‑channel** with this order:
